@@ -1,8 +1,6 @@
-// GTM Auditor — Vercel Edge Function
+// GTM Auditor — Vercel Serverless Function (Node.js runtime)
 // Fetches a target URL, parses any GTM container found, extracts page signals,
 // extracts Open Graph brand info, and calls Groq for an AI audit.
-
-export const config = { runtime: 'edge' };
 
 // ---------------------------------------------------------------------------
 // Tag-type lookups
@@ -112,7 +110,7 @@ function parseGtmContainer(script) {
   if (!raw) return null;
   let data;
   try { data = JSON.parse(raw); } catch { return null; }
-  const resource = data?.resource;
+  const resource = data && data.resource;
   if (!resource || typeof resource !== 'object') return null;
 
   const tags = (resource.tags || []).map(t => ({
@@ -121,25 +119,20 @@ function parseGtmContainer(script) {
     paused: !!(t.paused || (t.priority && t.priority < 0)),
     params: Object.keys(t).filter(k => k.startsWith('vtp_')).length,
   }));
-
   const macros = (resource.macros || []).map(m => ({
     name: m.function || m.vtp_name || 'Unnamed variable',
     type: GTM_TAG_TYPES[m.function] || m.function || 'Custom',
   }));
-
   const predicates = (resource.predicates || []).map(p => ({
     type: p.function || 'unknown',
   }));
-
   const rules = resource.rules || [];
-  const runtime = resource.runtime ? resource.runtime.length : 0;
 
   return {
     tag_count: tags.length,
     variable_count: macros.length,
     predicate_count: predicates.length,
     rule_count: rules.length,
-    runtime_blocks: runtime,
     version: resource.version || 'unknown',
     tags,
     variables: macros,
@@ -165,29 +158,19 @@ function extractPageSignals(html) {
   for (const [name, pattern] of Object.entries(TRACKING_SIGNATURES)) {
     if (pattern.test(html)) signals.detected_tools.push(name);
   }
-
-  const ga4 = html.match(/G-[A-Z0-9]{6,12}/g) || [];
-  signals.ga4_ids = [...new Set(ga4)];
-
-  const ua = html.match(/UA-\d{4,12}-\d+/g) || [];
-  signals.ga_universal_ids = [...new Set(ua)];
-
-  const aw = html.match(/AW-\d{6,12}/g) || [];
-  signals.google_ads_ids = [...new Set(aw)];
-
-  const dc = html.match(/DC-\d{6,12}/g) || [];
-  signals.floodlight_ids = [...new Set(dc)];
-
+  signals.ga4_ids = [...new Set(html.match(/G-[A-Z0-9]{6,12}/g) || [])];
+  signals.ga_universal_ids = [...new Set(html.match(/UA-\d{4,12}-\d+/g) || [])];
+  signals.google_ads_ids = [...new Set(html.match(/AW-\d{6,12}/g) || [])];
+  signals.floodlight_ids = [...new Set(html.match(/DC-\d{6,12}/g) || [])];
   signals.consent_mode_v1 = /gtag\(['"]consent['"]/i.test(html);
   signals.consent_mode_v2 = /ad_user_data|ad_personalization/i.test(html);
   signals.server_side_gtm =
     /transport_url|first-party-collection|sgtm|server-side/i.test(html);
-
   return signals;
 }
 
 // ---------------------------------------------------------------------------
-// Brand info extraction (Open Graph + favicon)
+// Brand info extraction
 // ---------------------------------------------------------------------------
 function extractBrandInfo(html, sourceUrl) {
   function findMeta(key) {
@@ -205,17 +188,13 @@ function extractBrandInfo(html, sourceUrl) {
     if (u.startsWith('http://') || u.startsWith('https://')) return u;
     try { return new URL(u, sourceUrl).toString(); } catch { return null; }
   }
-
   const titleMatch = html.match(/<title[^>]*>([^<]+)<\/title>/i);
   const title = titleMatch ? titleMatch[1].trim() : null;
-
   const ogImage = absolutize(findMeta('og:image') || findMeta('twitter:image'));
-
   let favicon = null;
   const favMatch = html.match(/<link\s+[^>]*rel=["'](?:shortcut )?icon["'][^>]*href=["']([^"']+)["']/i)
                 || html.match(/<link\s+[^>]*href=["']([^"']+)["'][^>]*rel=["'](?:shortcut )?icon["']/i);
   if (favMatch) favicon = absolutize(favMatch[1]);
-
   return {
     title: findMeta('og:title') || title,
     description: findMeta('og:description') || findMeta('description'),
@@ -312,7 +291,7 @@ Use 4-6 entries for tags, 3-5 for triggers, 4-6 for top_issues, 3-5 for quick_wi
 }
 
 // ---------------------------------------------------------------------------
-// Handler
+// Handler — Node.js Serverless format
 // ---------------------------------------------------------------------------
 const UA_STRING = 'Mozilla/5.0 (compatible; GTMAuditor/2.0; +https://github.com/iamgoan123/gtm-auditor)';
 
@@ -328,38 +307,38 @@ async function fetchWithTimeout(url, timeoutMs = 20000) {
   } finally { clearTimeout(timer); }
 }
 
-function jsonResponse(payload, status = 200) {
-  return new Response(JSON.stringify(payload), {
-    status,
-    headers: { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' },
-  });
-}
+export default async function handler(req, res) {
+  // Always set JSON content type
+  res.setHeader('Content-Type', 'application/json');
+  res.setHeader('Cache-Control', 'no-store');
 
-export default async function handler(req) {
-  if (req.method === 'OPTIONS') return new Response(null, { status: 204 });
-  if (req.method !== 'POST') return jsonResponse({ error: 'POST required' }, 405);
+  if (req.method === 'OPTIONS') return res.status(204).end();
+  if (req.method !== 'POST') return res.status(405).json({ error: 'POST required' });
 
-  let body;
-  try { body = await req.json(); } catch { return jsonResponse({ error: 'Invalid JSON body' }, 400); }
+  // Body parsing — Vercel auto-parses for JSON content-type but handle both
+  let body = req.body;
+  if (typeof body === 'string') {
+    try { body = JSON.parse(body); } catch { return res.status(400).json({ error: 'Invalid JSON body' }); }
+  }
   let { url } = body || {};
-  if (!url || typeof url !== 'string') return jsonResponse({ error: 'url is required' }, 400);
+  if (!url || typeof url !== 'string') return res.status(400).json({ error: 'url is required' });
 
   url = url.trim();
   if (!url.startsWith('http://') && !url.startsWith('https://')) url = 'https://' + url;
-  try { new URL(url); } catch { return jsonResponse({ error: 'Invalid URL' }, 400); }
+  try { new URL(url); } catch { return res.status(400).json({ error: 'Invalid URL' }); }
 
   if (!process.env.GROQ_API_KEY) {
-    return jsonResponse({ error: 'GROQ_API_KEY is not set in Vercel environment variables' }, 500);
+    return res.status(500).json({ error: 'GROQ_API_KEY is not set in Vercel environment variables' });
   }
 
   // 1. Fetch page
   let html;
   try {
     const r = await fetchWithTimeout(url);
-    if (!r.ok) return jsonResponse({ error: `Could not fetch ${url} (HTTP ${r.status})` }, 400);
+    if (!r.ok) return res.status(400).json({ error: `Could not fetch ${url} (HTTP ${r.status})` });
     html = await r.text();
   } catch (err) {
-    return jsonResponse({ error: `Fetch failed: ${err.message}` }, 400);
+    return res.status(400).json({ error: `Fetch failed: ${err.message}` });
   }
 
   // 2. Extract everything from the page
@@ -367,11 +346,9 @@ export default async function handler(req) {
   const brand = extractBrandInfo(html, url);
   const gtmMatches = [...new Set(html.match(/GTM-[A-Z0-9]{4,12}/g) || [])];
 
-  // 3. If no GTM, return early with what we found
+  // 3. If no GTM, return early
   if (gtmMatches.length === 0) {
-    return jsonResponse({
-      url, noGtm: true, brand, signals,
-    });
+    return res.status(200).json({ url, noGtm: true, brand, signals });
   }
 
   // 4. Fetch + parse the container
@@ -404,16 +381,16 @@ export default async function handler(req) {
     });
     if (!groqResp.ok) {
       const t = await groqResp.text();
-      return jsonResponse({ error: `Groq API error (${groqResp.status}): ${t.slice(0, 300)}` }, 500);
+      return res.status(500).json({ error: `Groq API error (${groqResp.status}): ${t.slice(0, 300)}` });
     }
     const data = await groqResp.json();
     let text = (data.choices?.[0]?.message?.content || '').trim();
     text = text.replace(/^```(?:json)?\s*/i, '').replace(/```\s*$/i, '').trim();
     try { audit = JSON.parse(text); }
-    catch (e) { return jsonResponse({ error: 'AI returned invalid JSON', raw: text.slice(0, 400) }, 500); }
+    catch (e) { return res.status(500).json({ error: 'AI returned invalid JSON', raw: text.slice(0, 400) }); }
   } catch (err) {
-    return jsonResponse({ error: `AI call failed: ${err.message}` }, 500);
+    return res.status(500).json({ error: `AI call failed: ${err.message}` });
   }
 
-  return jsonResponse({ url, gtmId, brand, signals, parsed, audit });
+  return res.status(200).json({ url, gtmId, brand, signals, parsed, audit });
 }
