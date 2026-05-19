@@ -1,0 +1,285 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>GTM Auditor — A diagnostic instrument for Google Tag Manager</title>
+<meta name="description" content="Inspect any website's tracking machinery. Audit GTM tags, GA4, consent mode v2, and ad pixels in seconds. No GTM access required.">
+<meta property="og:title" content="GTM Auditor — A diagnostic instrument for Google Tag Manager">
+<meta property="og:description" content="Inspect any website's tracking machinery. No GTM access required.">
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300..900;1,9..144,300..900&family=Geist:wght@300..700&family=Geist+Mono:wght@400..600&display=swap" rel="stylesheet">
+
+<link rel="stylesheet" href="/styles.css">
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/ScrollTrigger.min.js"></script>
+</head>
+<body>
+
+<!-- 1. Preloader -->
+<div id="preloader">
+  <div class="preloader-rings">
+    <div class="ring ring-1"></div>
+    <div class="ring ring-2"></div>
+  </div>
+  <div class="preloader-text">Calibrating instrument</div>
+</div>
+
+<!-- 2. Custom cursor -->
+<div class="cursor"></div>
+<div class="cursor-dot"></div>
+
+<!-- 10. Scroll progress -->
+<div class="scroll-progress"></div>
+
+<!-- 15. Nav -->
+<nav id="nav">
+  <div class="nav-inner">
+    <a href="#" class="logo">
+      <span class="logo-mark"></span>
+      GTM <em>Auditor</em>
+    </a>
+    <div class="nav-links">
+      <a href="#how"><span class="nav-idx">01</span>How it works</a>
+      <a href="#checks"><span class="nav-idx">02</span>What we check</a>
+      <a href="#faq"><span class="nav-idx">03</span>FAQ</a>
+      <a href="#audit-input" class="btn-nav" data-magnetic>Run inspection</a>
+    </div>
+  </div>
+</nav>
+
+<!-- 3. Hero with Three.js + 5. Character reveal -->
+<section class="hero">
+  <canvas id="hero-canvas"></canvas>
+  <div class="hero-grain"></div>
+  <div class="hero-corner hero-corner-tl">[ 01 ] Diagnostic Instrument</div>
+  <div class="hero-corner hero-corner-br">Est. 2026 · Live</div>
+  <div class="hero-content">
+    <div class="hero-label">A diagnostic instrument · 2026</div>
+    <h1 class="hero-title">The diagnostic<br><em>instrument</em> for<br>Google Tag Manager.</h1>
+    <p class="hero-sub">Inspect any website's tracking machinery. Audit GTM tags, GA4, consent mode v2 and ad pixels in seconds — without GTM access.</p>
+    <div class="hero-input" id="audit-input">
+      <input type="text" id="url-input" placeholder="https://yourwebsite.com" autocomplete="off" spellcheck="false">
+      <button class="btn-primary" data-magnetic id="audit-btn">
+        <span class="btn-label">Run inspection</span>
+        <span class="btn-arrow">→</span>
+      </button>
+    </div>
+    <div class="hero-meta">
+      <span class="meta-item">Live</span>
+      <span class="meta-item">No GTM access needed</span>
+      <span class="meta-item">Powered by Groq</span>
+    </div>
+  </div>
+</section>
+
+<!-- 14. Marquee -->
+<div class="marquee">
+  <div class="marquee-track" id="marquee-track"></div>
+</div>
+
+<!-- Audit results (hidden until user runs an audit) -->
+<section id="results" hidden></section>
+
+<!-- 6. Pinned scroll storytelling — How it works -->
+<section id="how" class="storytelling">
+  <div class="story-pin">
+    <div style="position: absolute; top: 80px; left: 0;">
+      <div class="section-label reveal-label">01 — How it works</div>
+    </div>
+    <div class="story-panels">
+      <div class="story-panel active">
+        <div class="story-num">.01 / 04</div>
+        <h2>Paste any <em>URL</em>.</h2>
+        <p>Any public website. Shopify, Webflow, custom — doesn't matter. We start with what every browser sees.</p>
+      </div>
+      <div class="story-panel">
+        <div class="story-num">.02 / 04</div>
+        <h2>Detect the <em>container</em>.</h2>
+        <p>The GTM container ID is right there in the page source. A regex match — that's all it takes.</p>
+      </div>
+      <div class="story-panel">
+        <div class="story-num">.03 / 04</div>
+        <h2>The container is <em>public</em>.</h2>
+        <p>Google serves gtm.js publicly to every browser. We fetch it and parse the full configuration — every tag, every variable, every trigger condition.</p>
+      </div>
+      <div class="story-panel">
+        <div class="story-num">.04 / 04</div>
+        <h2>AI <em>audits</em> the tracking.</h2>
+        <p>Tags, triggers, GA4 setup, consent mode v2, deprecated patterns, duplicate firing. All checked against 2026 best practices.</p>
+      </div>
+    </div>
+    <div class="story-dots">
+      <span class="dot active"></span>
+      <span class="dot"></span>
+      <span class="dot"></span>
+      <span class="dot"></span>
+    </div>
+  </div>
+</section>
+
+<!-- 7. Horizontal scroll — What we check -->
+<section id="checks" class="h-scroll-section">
+  <div class="h-scroll-header">
+    <div class="section-label reveal-label">02 — What we check</div>
+    <h2 class="section-title reveal-title">Every measurement<br>on the <em>instrument panel</em>.</h2>
+  </div>
+  <div class="h-scroll-wrap">
+    <div class="h-scroll-track">
+      <div class="h-card">
+        <div class="h-card-num">.01</div>
+        <div class="h-card-icon">G4</div>
+        <h3>GA4 implementation</h3>
+        <p>Measurement ID detection, configuration tags, enhanced ecommerce events, custom event naming compliance (snake_case), debug mode and ID coverage across the container.</p>
+        <div class="h-card-foot">Measurement layer</div>
+      </div>
+      <div class="h-card">
+        <div class="h-card-num">.02</div>
+        <div class="h-card-icon">UA</div>
+        <h3>UA deprecation</h3>
+        <p>Universal Analytics sunset in July 2023. We flag any lingering UA tags, UA-XXXXX measurement IDs, or analytics.js usage as a high-priority issue with remediation steps.</p>
+        <div class="h-card-foot">Legacy detection</div>
+      </div>
+      <div class="h-card">
+        <div class="h-card-num">.03</div>
+        <div class="h-card-icon">⊕</div>
+        <h3>Consent Mode v2</h3>
+        <p>Required for EEA traffic since March 2024. We check for ad_user_data and ad_personalization signals, default consent states, and update timing. Missing this loses ad revenue.</p>
+        <div class="h-card-foot">Compliance · EEA</div>
+      </div>
+      <div class="h-card">
+        <div class="h-card-num">.04</div>
+        <div class="h-card-icon">$</div>
+        <h3>Google Ads stack</h3>
+        <p>Conversion tracking, remarketing tags, Conversion Linker presence, enhanced conversions setup. Missing a Conversion Linker is the most common reason for attribution loss.</p>
+        <div class="h-card-foot">Paid media</div>
+      </div>
+      <div class="h-card">
+        <div class="h-card-num">.05</div>
+        <div class="h-card-icon">π</div>
+        <h3>Pixel inventory</h3>
+        <p>Meta, TikTok, Pinterest, LinkedIn Insight, X, Snap, Bing UET, Criteo. We catalog every pixel firing on the page — whether through GTM or hardcoded — and flag duplicates.</p>
+        <div class="h-card-foot">Pixels detected</div>
+      </div>
+      <div class="h-card">
+        <div class="h-card-num">.06</div>
+        <div class="h-card-icon">⇄</div>
+        <h3>Server-side GTM</h3>
+        <p>A maturity indicator. We look for sgtm domains, custom GTM endpoints, and Conversions API integrations. For ecommerce and lead-gen sites, server-side is no longer optional.</p>
+        <div class="h-card-foot">Architecture</div>
+      </div>
+      <div class="h-card">
+        <div class="h-card-num">.07</div>
+        <div class="h-card-icon">⊜</div>
+        <h3>Duplicate firing</h3>
+        <p>If a Shopify store has both native Shopify tracking AND a GTM-based GA4 tag, ecommerce events double-fire. We catch the conflict and recommend the canonical source.</p>
+        <div class="h-card-foot">Data quality</div>
+      </div>
+      <div class="h-card">
+        <div class="h-card-num">.08</div>
+        <div class="h-card-icon">⌀</div>
+        <h3>Full inventory</h3>
+        <p>Every tag in the container, with its type, params, and paused status. Every variable. Every trigger condition. Exportable. Useful for handovers, audits, and competitive teardowns.</p>
+        <div class="h-card-foot">Complete catalog</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- 9. Counters + 8. Velocity skew on cards + 11. Reveals -->
+<section class="findings">
+  <div class="section-label reveal-label">03 — Common findings</div>
+  <h2 class="section-title reveal-title">What we catch <em>most</em>.</h2>
+  <div class="findings-grid">
+    <div class="finding reveal-card skew-el">
+      <div class="finding-pct"><span data-target="47">0</span>%</div>
+      <h4>Missing Consent Mode v2</h4>
+      <p>Sites with GA4 or Google Ads tags but no ad_user_data / ad_personalization signals. Costs ad revenue in EEA.</p>
+    </div>
+    <div class="finding reveal-card skew-el">
+      <div class="finding-pct"><span data-target="34">0</span>%</div>
+      <h4>No Conversion Linker</h4>
+      <p>Google Ads tags firing without the Conversion Linker variable. Attribution and enhanced conversions break silently.</p>
+    </div>
+    <div class="finding reveal-card skew-el">
+      <div class="finding-pct"><span data-target="22">0</span>%</div>
+      <h4>Lingering UA tags</h4>
+      <p>Universal Analytics tags still in containers two years after sunset. Either paused-but-present or unknowingly firing.</p>
+    </div>
+    <div class="finding reveal-card skew-el">
+      <div class="finding-pct"><span data-target="28">0</span>%</div>
+      <h4>Duplicate ecommerce events</h4>
+      <p>Shopify stores with both native pixel and GTM-based GA4. Purchase events fire twice, inflating revenue by 2×.</p>
+    </div>
+    <div class="finding reveal-card skew-el">
+      <div class="finding-pct"><span data-target="71">0</span>%</div>
+      <h4>Non-compliant event names</h4>
+      <p>GA4 custom events not using snake_case. The platform accepts them silently but breaks recommended event mapping.</p>
+    </div>
+    <div class="finding reveal-card skew-el">
+      <div class="finding-pct"><span data-target="83">0</span>%</div>
+      <h4>No server-side container</h4>
+      <p>Ecommerce sites still running 100% client-side tagging. Vulnerable to ad blockers, ITP, and rising CAC.</p>
+    </div>
+  </div>
+</section>
+
+<!-- FAQ -->
+<section id="faq" class="faq-section">
+  <div class="section-label reveal-label">04 — Questions</div>
+  <h2 class="section-title reveal-title">Frequently asked.</h2>
+  <details class="faq-item">
+    <summary>How can you audit a GTM container without access?</summary>
+    <p>Google serves the gtm.js file publicly from googletagmanager.com — every browser that loads a site with GTM has to fetch it. We do the same. The container's full configuration (tags, variables, trigger conditions) is right there in that public script. No authentication needed.</p>
+  </details>
+  <details class="faq-item">
+    <summary>Is this legal? Is it ethical?</summary>
+    <p>Yes to both. The gtm.js file is intentionally public — Google designed it that way. No site is being scraped beyond what their server already sends to every visitor. We read the public configuration, we don't modify anything, we don't access any private data. Competitors looking at each other's public tracking has been standard practice for years.</p>
+  </details>
+  <details class="faq-item">
+    <summary>What can't this tool see?</summary>
+    <p>Server-side GTM containers (we detect their presence but not their internals), the runtime contents of Custom HTML tags (we see they exist, not what they execute), Single Page Apps that load GTM dynamically after initial render, and anything fired purely server-side from the host's own infrastructure.</p>
+  </details>
+  <details class="faq-item">
+    <summary>Why does it show 153 tags but only list a few?</summary>
+    <p>The summary section shows tags the AI flagged as notable — either passing key checks, warning conditions, or actively broken. The full container inventory expander lists every single tag in the container, including the ones that are just doing their job quietly.</p>
+  </details>
+  <details class="faq-item">
+    <summary>How accurate is the AI audit?</summary>
+    <p>The audit logic uses Llama 3.3 70B (via Groq) and is grounded in the actual parsed container data — not vibes. The model is given the real tag names, variable names, and trigger conditions extracted from gtm.js, plus a strict checklist of 2026 best practices to apply (UA deprecation, Consent Mode v2, snake_case events, Conversion Linker, etc.).</p>
+  </details>
+  <details class="faq-item">
+    <summary>Can I export the audit?</summary>
+    <p>Not yet — on the roadmap. For now, the full container inventory is in the page so you can copy-paste it. Tell me if you want PDF or CSV export and I'll prioritize it.</p>
+  </details>
+</section>
+
+<!-- CTA -->
+<section class="cta-section">
+  <div class="cta-inner">
+    <div class="section-label reveal-label" style="justify-content: center;">05 — Ready</div>
+    <h2 class="cta-title">Inspect the <em>machinery</em>.</h2>
+    <p>Drop a URL above and see what the tracking is really doing.</p>
+    <a href="#audit-input" class="btn-primary" data-magnetic>
+      <span class="btn-label">Run an inspection</span>
+      <span class="btn-arrow">→</span>
+    </a>
+  </div>
+</section>
+
+<!-- Footer -->
+<footer>
+  <div class="footer-inner">
+    <span>GTM Auditor · 2026</span>
+    <span>Built on Vercel · AI by Groq</span>
+    <a href="https://github.com/iamgoan123/gtm-auditor" target="_blank" rel="noopener">GitHub</a>
+  </div>
+</footer>
+
+<script src="/main.js"></script>
+</body>
+</html>
