@@ -2,6 +2,5 @@
   "name": "gtm-auditor",
   "version": "2.0.0",
   "private": true,
-  "description": "A diagnostic instrument for Google Tag Manager — audit any website's GTM setup without GTM access.",
-  "type": "module"
+  "description": "A diagnostic instrument for Google Tag Manager."
 }
