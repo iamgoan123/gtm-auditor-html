@@ -414,13 +414,22 @@ async function runAudit() {
   section.innerHTML = renderLoading();
   setTimeout(() => section.scrollIntoView({ behavior: 'smooth', block: 'start' }), 200);
 
-  const stages = ['Fetching page source', 'Detecting GTM container', 'Parsing gtm.js', 'Running AI audit'];
-  let stageIdx = 0;
-  const rotateStage = setInterval(() => {
-    if (stageIdx < stages.length - 1) stageIdx++;
-    const stageEl = section.querySelector('.audit-loading-stages');
-    if (stageEl) stageEl.textContent = stages[stageIdx];
-  }, 1800);
+  const stages = [
+      'Fetching homepage',
+      'Discovering product, collection, and cart pages',
+      'Auditing product page',
+      'Auditing collection page',
+      'Auditing cart',
+      'Parsing GTM container',
+      'Extracting measurement IDs and consent config',
+      'Running AI audit'
+    ];
+    let stageIdx = 0;
+    const rotateStage = setInterval(() => {
+      if (stageIdx < stages.length - 1) stageIdx++;
+      const stageEl = section.querySelector('.audit-loading-stages');
+      if (stageEl) stageEl.textContent = stages[stageIdx];
+    }, 3000);
 
   try {
     const resp = await fetch('/api/audit', {
