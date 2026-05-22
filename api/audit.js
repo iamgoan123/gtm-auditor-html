@@ -506,7 +506,8 @@ function buildAuditPrompt(url, gtmId, parsed, signals, pagesAudited, evidence) {
     '- Conversion Linker tag present: ' + (evidence ? evidence.has_conversion_linker : 'unknown') + '\n' +
     '- Consent Mode default state set in container: ' + (evidence ? evidence.has_consent_default : 'unknown') + '\n' +
     '- Enhanced Conversions flagged in container: ' + (evidence ? evidence.has_enhanced_conversions : 'unknown') + '\n' +
-    '- transport_url (server-side endpoint) configured: ' + (evidence ? evidence.has_server_side_transport : 'unknown') + '\n\n' +
+    '- transport_url (server-side endpoint) configured: ' + (evidence ? evidence.has_server_side_transport : 'unknown') + '\n' +
+    '- GA4 events CONFIGURED in container (event_name on tags): ' + ((evidence && evidence.configured_ga4_events.length) ? evidence.configured_ga4_events.join(', ') : 'none found') + '\n\n' +
     'AGGREGATED PAGE SIGNALS (across all audited pages):\n' +
     '- GA4 IDs found on pages: ' + (signals.ga4_ids.join(', ') || 'none') + '\n' +
     '- Universal Analytics IDs on pages: ' + (signals.ga_universal_ids.join(', ') || 'none') + '\n' +
@@ -527,8 +528,10 @@ function buildAuditPrompt(url, gtmId, parsed, signals, pagesAudited, evidence) {
     '  -15 if Google Ads (AW-) IDs present but Conversion Linker tag NOT present in container\n\n' +
     'MAJOR DEDUCTIONS (-8 each):\n' +
     '  -8 if Google Ads conversion tag exists but enhanced_conversions / user_data is NOT in container evidence\n' +
-    '  -8 if PDP was successfully audited but no view_item or add_to_cart dataLayer event observed (broken ecommerce tracking)\n' +
-    '  -8 if cart page was successfully audited but no begin_checkout / add_to_cart event observed\n' +
+    '  ECOMMERCE EVENT COVERAGE LOGIC: For view_item, add_to_cart, begin_checkout — treat an event as ADEQUATELY TRACKED if it appears EITHER in "GA4 events CONFIGURED in container" OR in observed page dataLayer events. Static HTML scans usually miss runtime pushes (events fire from bundled JS or click handlers), so the container configuration is the primary evidence. Only deduct when BOTH sources are missing.\n' +
+    '  -8 if NEITHER container configures view_item NOR PDP shows view_item event (genuinely missing PDP tracking)\n' +
+    '  -8 if NEITHER container configures add_to_cart NOR any page shows that event (genuinely missing cart event)\n' +
+    '  -8 if NEITHER container configures begin_checkout NOR cart page shows that event (genuinely missing checkout event)\n' +
     '  -8 if container has >100 tags (governance risk)\n' +
     '  -8 if duplicate-firing risk visible (e.g. Shopify native pixel + GTM GA4 active simultaneously)\n\n' +
     'MINOR DEDUCTIONS (-4 each):\n' +
