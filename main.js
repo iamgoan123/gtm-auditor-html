@@ -1,5 +1,6 @@
 /* GTM Auditor — frontend behavior
  * All 17 features from the brief + audit fetch/render.
+ * v2.1: multi-page audit stages + worth_verifying confidence tier
  */
 
 const isMobile = window.innerWidth < 769;
@@ -414,22 +415,23 @@ async function runAudit() {
   section.innerHTML = renderLoading();
   setTimeout(() => section.scrollIntoView({ behavior: 'smooth', block: 'start' }), 200);
 
+  // v2.1: 8-stage flow matching multi-page audit, 3s per stage = ~24s total
   const stages = [
-      'Fetching homepage',
-      'Discovering product, collection, and cart pages',
-      'Auditing product page',
-      'Auditing collection page',
-      'Auditing cart',
-      'Parsing GTM container',
-      'Extracting measurement IDs and consent config',
-      'Running AI audit'
-    ];
-    let stageIdx = 0;
-    const rotateStage = setInterval(() => {
-      if (stageIdx < stages.length - 1) stageIdx++;
-      const stageEl = section.querySelector('.audit-loading-stages');
-      if (stageEl) stageEl.textContent = stages[stageIdx];
-    }, 3000);
+    'Fetching homepage',
+    'Discovering product, collection, and cart pages',
+    'Auditing product page',
+    'Auditing collection page',
+    'Auditing cart',
+    'Parsing GTM container',
+    'Extracting measurement IDs and consent config',
+    'Running AI audit'
+  ];
+  let stageIdx = 0;
+  const rotateStage = setInterval(() => {
+    if (stageIdx < stages.length - 1) stageIdx++;
+    const stageEl = section.querySelector('.audit-loading-stages');
+    if (stageEl) stageEl.textContent = stages[stageIdx];
+  }, 3000);
 
   try {
     const resp = await fetch('/api/audit', {
@@ -456,7 +458,7 @@ function renderLoading() {
       <div class="audit-loading">
         <div class="audit-loading-ring"><svg viewBox="0 0 80 80"><circle cx="40" cy="40" r="32" /></svg></div>
         <div class="audit-loading-text">Inspecting tracking machinery</div>
-        <div class="audit-loading-stages">Fetching page source</div>
+        <div class="audit-loading-stages">Fetching homepage</div>
       </div>
     </div>
   `;
@@ -504,7 +506,7 @@ function renderResults(data) {
     animateCounter(el);
   });
 
-  gsap.from(section.querySelectorAll('.brand-card, .parsed-strip, .metrics-row, .ga4-banner, .detected-section, .explainer, .results-grid, .inventory, .top-issues, .quick-wins'), {
+  gsap.from(section.querySelectorAll('.brand-card, .parsed-strip, .metrics-row, .ga4-banner, .detected-section, .explainer, .results-grid, .inventory, .top-issues, .worth-verifying, .quick-wins'), {
     opacity: 0, y: 20, stagger: 0.08, duration: 0.7, ease: 'power2.out'
   });
 
@@ -692,6 +694,31 @@ function renderIssues(audit) {
           `;
         }).join('')}
       </div>
+    </div>
+  `;
+}
+
+/* ============================================================================
+   WORTH VERIFYING — confidence tier 2 (lower confidence findings)
+   Does NOT affect the health score. Manual check items only.
+============================================================================ */
+function renderWorthVerifying(audit) {
+  const items = audit.worth_verifying || [];
+  if (!items.length) return '';
+  return `
+    <div class="worth-verifying" style="margin-top:32px">
+      <h3 style="font-family:var(--serif);font-size:22px;font-weight:450;letter-spacing:-0.015em;margin-bottom:8px;">Worth verifying</h3>
+      <p style="font-size:13px;color:var(--ink-2);margin-bottom:16px;line-height:1.6;max-width:680px">These look fine from our static scan, but we couldn't fully confirm without running JavaScript or interacting with the site. Worth a 30-second manual check. <strong>Not counted toward the health score.</strong></p>
+      ${items.map(i => `
+        <div class="tag-card info" style="margin-bottom:12px">
+          <div style="display:flex;align-items:center;flex-wrap:wrap">
+            <span class="tag-name">${escapeHtml(i.title)}</span>
+            <span class="badge badge-info">Verify manually</span>
+          </div>
+          <div class="tag-detail">${escapeHtml(i.detail || '')}</div>
+          <div class="tag-rec">→ ${escapeHtml(i.how_to_check || '')}</div>
+        </div>
+      `).join('')}
     </div>
   `;
 }
