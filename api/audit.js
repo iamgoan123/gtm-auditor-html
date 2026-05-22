@@ -290,7 +290,7 @@ function buildAuditPrompt(url, gtmId, parsed, signals) {
     return TOOL_LABELS[t] || t;
   }).join(', ');
 
-  return 'You are a senior Google Tag Manager auditor performing a real-world inspection of a website\'s tracking setup.\n\n' +
+  return 'You are a senior Google Tag Manager auditor performing a real-world inspection of a website\'s tracking setup. Be RIGOROUS and SITE-SPECIFIC. The health score and issue count MUST vary based on actual findings — do not return generic mid-range numbers.\n\n' +
     'WEBSITE: ' + url + '\n' +
     'GTM CONTAINER: ' + gtmId + '\n\n' +
     'PARSED CONTAINER DATA:\n' +
@@ -314,22 +314,37 @@ function buildAuditPrompt(url, gtmId, parsed, signals) {
     '- Consent Mode v2 signals (ad_user_data / ad_personalization): ' + signals.consent_mode_v2 + '\n' +
     '- Server-side GTM detected: ' + signals.server_side_gtm + '\n' +
     '- Other tracking tools detected on page: ' + (prettyTools || 'none') + '\n\n' +
-    'AUDIT PRIORITIES (2026):\n' +
-    '1. Universal Analytics was sunset July 2023. Any UA reference is HIGH priority.\n' +
-    '2. Consent Mode v2 is required for EEA traffic since March 2024. Missing ad_user_data / ad_personalization is HIGH priority.\n' +
-    '3. GA4 event names MUST be snake_case.\n' +
-    '4. Conversion Linker is required when Google Ads tags are present.\n' +
-    '5. Server-side GTM is a maturity indicator for ecommerce and high-traffic sites.\n' +
-    '6. Watch for duplicate firing — e.g. Shopify native pixel + GTM-based GA4 = double events.\n' +
-    '7. If Adobe Analytics is detected, comment on dual-stack overhead vs sole-stack maturity.\n\n' +
+    'SCORING RUBRIC — START at 100, then subtract from the score for every finding below that is TRUE for this site. Do NOT round to 60. Do NOT default to middle. Compute it exactly.\n\n' +
+    'CRITICAL DEDUCTIONS (-15 each):\n' +
+    '  -15 if Universal Analytics IDs are present (UA was sunset July 2023)\n' +
+    '  -15 if NO GA4 measurement ID is found anywhere\n' +
+    '  -15 if Consent Mode v2 signals are absent (required for EEA traffic since Mar 2024)\n' +
+    '  -15 if Google Ads is detected but NO Conversion Linker tag found\n\n' +
+    'MAJOR DEDUCTIONS (-8 each):\n' +
+    '  -8 if Google Ads conversion tag exists but no Enhanced Conversions configuration\n' +
+    '  -8 if duplicate firing risk detected (e.g. Shopify native + GTM GA4)\n' +
+    '  -8 if container has >100 tags (governance concern — bloat risk)\n' +
+    '  -8 if any tag is paused but appears to be a primary tracker (GA4, Ads, Meta)\n\n' +
+    'MINOR DEDUCTIONS (-4 each):\n' +
+    '  -4 if no server-side GTM detected on a site with >50 tags (maturity signal)\n' +
+    '  -4 if Adobe Analytics AND GA4 both present (dual-stack overhead)\n' +
+    '  -4 if container version looks stale relative to tag count (<v50 with >80 tags = neglected)\n' +
+    '  -4 per third-party tracker without a corresponding consent tie-in\n\n' +
+    'BONUSES (+5 each, capped at +10 total):\n' +
+    '  +5 if Server-side GTM is detected\n' +
+    '  +5 if Consent Mode v2 is properly implemented\n' +
+    '  +5 if Enhanced Conversions are present\n\n' +
+    'After applying the rubric, clamp the score to 0-100. The score MUST reflect actual findings — never use 60 as a default. Sites with clean modern setups should score 80+. Sites with UA still present and no Consent Mode v2 should score 40-55. Sites with multiple critical issues should score below 40.\n\n' +
+    'ISSUES_COUNT MUST EQUAL the number of distinct deductions applied above. It is NOT a fixed 10. A clean site might have 0-2 issues. A neglected site might have 8-12.\n\n' +
     'RETURN STRICT JSON (no markdown fences, no preamble):\n\n' +
     '{\n' +
-    '  "site_summary": "1-2 sentence summary of the tracking setup found",\n' +
-    '  "health_score": <0-100>,\n' +
-    '  "tags_found": <number>,\n' +
-    '  "triggers_found": <number>,\n' +
-    '  "variables_found": <number>,\n' +
-    '  "issues_count": <number>,\n' +
+    '  "site_summary": "1-2 sentence summary of THIS site\'s tracking setup — mention what platform, what analytics, key gap",\n' +
+    '  "health_score": <computed 0-100 — show your work in scoring_breakdown below>,\n' +
+    '  "scoring_breakdown": [ "Started at 100", "-15 UA detected", "-15 no Consent Mode v2", "+5 server-side GTM", ... ],\n' +
+    '  "tags_found": <number from parsed data>,\n' +
+    '  "triggers_found": <number from parsed data>,\n' +
+    '  "variables_found": <number from parsed data>,\n' +
+    '  "issues_count": <number — count of distinct deductions applied above>,\n' +
     '  "ga4": {\n' +
     '    "present": <bool>,\n' +
     '    "measurement_id": "<G-XXX or None>",\n' +
@@ -337,26 +352,41 @@ function buildAuditPrompt(url, gtmId, parsed, signals) {
     '    "ecommerce": <bool>,\n' +
     '    "consent_mode": <bool>,\n' +
     '    "consent_mode_v2": <bool>,\n' +
-    '    "note": "<one-line status>"\n' +
+    '    "note": "<one-line status specific to this site>"\n' +
     '  },\n' +
     '  "tags": [\n' +
-    '    { "name": "<actual tag type or name from container>", "status": "<pass|warn|fail|info>", "detail": "<what it does>", "recommendation": "<optional fix>" }\n' +
+    '    { "name": "<actual tag type from container>", "status": "<pass|warn|fail|info>", "detail": "<what it does on THIS site>", "recommendation": "<optional fix>" }\n' +
     '  ],\n' +
     '  "triggers": [\n' +
     '    { "name": "<trigger type>", "status": "<pass|warn|fail|info>", "detail": "<short>", "recommendation": "<optional>" }\n' +
     '  ],\n' +
     '  "top_issues": [\n' +
-    '    { "title": "<short>", "priority": "<high|medium|low>", "detail": "<longer>", "fix": "<actionable step>" }\n' +
+    '    { "title": "<short>", "priority": "<high|medium|low>", "detail": "<longer, specific to this site>", "fix": "<actionable step>" }\n' +
     '  ],\n' +
-    '  "quick_wins": [ "<short imperative>", ... ]\n' +
+    '  "quick_wins": [ "<short imperative tied to a real finding>", ... ]\n' +
     '}\n\n' +
-    'Use 4-6 entries for tags, 3-5 for triggers, 4-6 for top_issues, 3-5 for quick_wins. Use ACTUAL names from the data above — do not invent.';
+    'Use 4-6 tag entries, 3-5 trigger entries, top_issues count = issues_count, 3-5 quick wins. Use ACTUAL names from the data — do not invent. The summary, score, and issues MUST be specific to THIS website — generic answers fail the audit.';
 }
 
 // ---------------------------------------------------------------------------
 // Handler — Node.js CommonJS Serverless Function
 // ---------------------------------------------------------------------------
-const UA_STRING = 'Mozilla/5.0 (compatible; GTMAuditor/2.0; +https://github.com/iamgoan123/gtm-auditor)';
+// Real Chrome UA + standard browser headers to defeat basic bot detection.
+// High-security sites (Cloudflare/Akamai WAF) will still 403 — that's a site
+// policy, not a tool failure, and we surface a clear message when it happens.
+const UA_STRING = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36';
+
+const BROWSER_HEADERS = {
+  'User-Agent': UA_STRING,
+  'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8',
+  'Accept-Language': 'en-AU,en;q=0.9,en-US;q=0.8',
+  'Accept-Encoding': 'gzip, deflate, br',
+  'Sec-Fetch-Dest': 'document',
+  'Sec-Fetch-Mode': 'navigate',
+  'Sec-Fetch-Site': 'none',
+  'Sec-Fetch-User': '?1',
+  'Upgrade-Insecure-Requests': '1'
+};
 
 async function fetchWithTimeout(url, timeoutMs) {
   timeoutMs = timeoutMs || 20000;
@@ -365,7 +395,7 @@ async function fetchWithTimeout(url, timeoutMs) {
   try {
     return await fetch(url, {
       signal: controller.signal,
-      headers: { 'User-Agent': UA_STRING, 'Accept': 'text/html,*/*' },
+      headers: BROWSER_HEADERS,
       redirect: 'follow'
     });
   } finally {
@@ -400,7 +430,17 @@ module.exports = async function handler(req, res) {
   let html;
   try {
     const r = await fetchWithTimeout(url);
-    if (!r.ok) return res.status(400).json({ error: 'Could not fetch ' + url + ' (HTTP ' + r.status + ')' });
+    if (!r.ok) {
+      let msg;
+      if (r.status === 403 || r.status === 401) {
+        msg = url + ' blocked automated access (HTTP ' + r.status + '). Site uses bot defense (likely Cloudflare/Akamai). Try manually via view-source: in the browser.';
+      } else if (r.status === 429) {
+        msg = url + ' rate-limited the auditor (HTTP 429). Wait a minute and retry.';
+      } else {
+        msg = 'Could not fetch ' + url + ' (HTTP ' + r.status + ')';
+      }
+      return res.status(400).json({ error: msg });
+    }
     html = await r.text();
   } catch (err) {
     return res.status(400).json({ error: 'Fetch failed: ' + err.message });
