@@ -393,12 +393,29 @@ function parseGtmContainer(script) {
 // "GA4 present but no measurement ID" bug. Container-configured IDs live in
 // vtp_tagId / vtp_measurementId params inside the script, not the page HTML.
 function extractContainerEvidence(rawScript) {
+  // Pull configured GA4 event names from container tags. Closes the false-negative
+  // where view_item / add_to_cart are configured but our static scan can't observe
+  // the runtime push (they fire via deferred JS or click handlers we never execute).
+  const eventNames = new Set();
+  const evRe1 = /"vtp_eventName"\s*:\s*"([a-z_][a-z0-9_]{1,50})"/gi;
+  let m;
+  while ((m = evRe1.exec(rawScript)) !== null) {
+    eventNames.add(m[1]);
+    if (eventNames.size > 50) break;
+  }
+  const evRe2 = /"eventName"\s*:\s*"([a-z_][a-z0-9_]{1,50})"/gi;
+  while ((m = evRe2.exec(rawScript)) !== null) {
+    eventNames.add(m[1]);
+    if (eventNames.size > 50) break;
+  }
+
   return {
     ga4_ids: Array.from(new Set(rawScript.match(/G-[A-Z0-9]{6,12}/g) || [])),
     google_tag_ids: Array.from(new Set(rawScript.match(/GT-[A-Z0-9]{6,12}/g) || [])),
     google_ads_ids: Array.from(new Set(rawScript.match(/AW-\d{6,12}/g) || [])),
     universal_analytics_ids: Array.from(new Set(rawScript.match(/UA-\d{4,12}-\d+/g) || [])),
     floodlight_ids: Array.from(new Set(rawScript.match(/DC-\d{6,12}/g) || [])),
+    configured_ga4_events: Array.from(eventNames),
     has_conversion_linker: /"__cl"|Conversion\s*Linker/i.test(rawScript),
     has_consent_default: /consent['"\s]*,\s*['"]default/i.test(rawScript),
     has_enhanced_conversions: /enhanced_conversions|allow_enhanced_conversions|user_data/i.test(rawScript),
