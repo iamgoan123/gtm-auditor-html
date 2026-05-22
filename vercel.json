@@ -1,7 +1,8 @@
-const stages = ['Fetching page source', 'Detecting GTM container', 'Parsing gtm.js', 'Running AI audit'];
-let stageIdx = 0;
-const rotateStage = setInterval(() => {
-  if (stageIdx < stages.length - 1) stageIdx++;
-  const stageEl = section.querySelector('.audit-loading-stages');
-  if (stageEl) stageEl.textContent = stages[stageIdx];
-}, 1800);
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "functions": {
+    "api/audit.js": {
+      "maxDuration": 30
+    }
+  }
+}
