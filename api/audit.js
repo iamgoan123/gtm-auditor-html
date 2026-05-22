@@ -528,12 +528,12 @@ function buildAuditPrompt(url, gtmId, parsed, signals, pagesAudited, evidence) {
     '  -15 if Google Ads (AW-) IDs present but Conversion Linker tag NOT present in container\n\n' +
     'MAJOR DEDUCTIONS (-8 each):\n' +
     '  -8 if Google Ads conversion tag exists but enhanced_conversions / user_data is NOT in container evidence\n' +
-    '  ECOMMERCE EVENT COVERAGE LOGIC: For view_item, add_to_cart, begin_checkout — treat an event as ADEQUATELY TRACKED if it appears EITHER in "GA4 events CONFIGURED in container" OR in observed page dataLayer events. Static HTML scans usually miss runtime pushes (events fire from bundled JS or click handlers), so the container configuration is the primary evidence. Only deduct when BOTH sources are missing.\n' +
-    '  -8 if NEITHER container configures view_item NOR PDP shows view_item event (genuinely missing PDP tracking)\n' +
-    '  -8 if NEITHER container configures add_to_cart NOR any page shows that event (genuinely missing cart event)\n' +
-    '  -8 if NEITHER container configures begin_checkout NOR cart page shows that event (genuinely missing checkout event)\n' +
+    '  CRITICAL RULE FOR ECOMMERCE EVENTS: For view_item, add_to_cart, begin_checkout, purchase — DO NOT deduct just because the event was not observed in page HTML. Static HTML scans CANNOT see events fired by deferred JS, click handlers, or bundled JavaScript — that is the NORMAL case for modern ecommerce sites. Only deduct if BOTH of these are true: (a) the event name does NOT appear in "GA4 events CONFIGURED in container" above, AND (b) the event was not observed in dataLayer events on any page. If the event IS in the configured events list, the container has it set up — assume it works, do NOT deduct, and instead consider whether to mention it in worth_verifying.\n' +
+    '  -8 if container does NOT configure view_item AND no page observed view_item (truly absent from setup)\n' +
+    '  -8 if container does NOT configure add_to_cart AND no page observed it (truly absent)\n' +
+    '  -8 if container does NOT configure begin_checkout AND no page observed it (truly absent)\n' +
     '  -8 if container has >100 tags (governance risk)\n' +
-    '  -8 if duplicate-firing risk visible (e.g. Shopify native pixel + GTM GA4 active simultaneously)\n\n' +
+    '  -8 if duplicate-firing risk visible AND confirmed by tag inventory (e.g. Shopify native pixel detected on page AND GTM container also has GA4 Page View tag firing on all pages — this is a real duplicate, not just two tools coexisting)\n\n' +
     'MINOR DEDUCTIONS (-4 each):\n' +
     '  -4 if no server-side GTM detected on a site with >50 tags (maturity gap)\n' +
     '  -4 if Adobe Analytics AND GA4 both present (dual-stack overhead)\n' +
@@ -548,19 +548,24 @@ function buildAuditPrompt(url, gtmId, parsed, signals, pagesAudited, evidence) {
     'After applying the rubric, clamp 0-100. A clean modern setup should score 85-95. A neglected setup with UA still firing should score 35-55.\n\n' +
     'ISSUES_COUNT MUST EQUAL the number of distinct deductions actually applied. Clean sites might have 0-2. Neglected sites 8-12.\n\n' +
     'PAGE COVERAGE: If some pages failed to fetch (blocked, timeout), note this in your summary and DO NOT penalise the site for things you could not observe (e.g. don\'t deduct -8 for missing view_item if PDP returned http_403).\n\n' +
+    'CONFIDENCE TIERS — sort findings by how certain you are:\n' +
+    '  top_issues = HIGH CONFIDENCE problems where you can cite specific evidence in the data above (e.g. "UA-XXX is present", "Shopify native pixel detected AND GTM GA4 fires globally"). If you cannot name the exact evidence, do NOT put it here.\n' +
+    '  worth_verifying = LOWER CONFIDENCE observations. Things that LOOK fine but you cannot fully confirm with a static fetch — e.g. "container configures view_item but we did not run JS to confirm it fires", "Klaviyo detected but signup flow tracking unknown", "Consent Mode v2 present but default state not visible in script". These are MANUAL CHECK ITEMS. DO NOT deduct from health_score for things in worth_verifying — that section is separate from scoring.\n' +
+    '  quick_wins = small actionable improvements regardless of priority.\n\n' +
+    'When in doubt about an event or behaviour: put it in worth_verifying, not top_issues. Correctness > completeness. A confident wrong answer is worse than an honest "we cannot tell from here, here is how to check."\n\n' +
     'RETURN STRICT JSON (no markdown fences, no preamble):\n\n' +
     '{\n' +
     '  "site_summary": "1-2 sentences SPECIFIC to this site — platform, analytics setup, biggest gap",\n' +
     '  "health_score": <0-100 computed via rubric>,\n' +
     '  "scoring_breakdown": [ "Started at 100", "-15 UA detected", "-8 no view_item on PDP", "+5 server-side GTM", "Total: 82" ],\n' +
     '  "tags_found": <number>, "triggers_found": <number>, "variables_found": <number>,\n' +
-    '  "issues_count": <number — count of deductions applied>,\n' +
+    '  "issues_count": <number — count of deductions applied, NOT including worth_verifying>,\n' +
     '  "pages_coverage_note": "<1 sentence about which pages were audited successfully and any gaps>",\n' +
     '  "ga4": {\n' +
     '    "present": <bool>,\n' +
     '    "measurement_id": "<G-XXX from container OR page, or None if truly absent>",\n' +
     '    "via": "<GTM | gtag.js | None>",\n' +
-    '    "ecommerce": <bool — true if view_item/add_to_cart/begin_checkout observed in dataLayer events>,\n' +
+    '    "ecommerce": <bool — true if view_item/add_to_cart/begin_checkout configured in container OR observed in dataLayer>,\n' +
     '    "consent_mode": <bool>,\n' +
     '    "consent_mode_v2": <bool>,\n' +
     '    "note": "<one-line status specific to this site>"\n' +
@@ -568,10 +573,11 @@ function buildAuditPrompt(url, gtmId, parsed, signals, pagesAudited, evidence) {
     '  "ecommerce_events_observed": [ "view_item", "add_to_cart", ... ],\n' +
     '  "tags": [ { "name": "<actual tag type>", "status": "<pass|warn|fail|info>", "detail": "<specific>", "recommendation": "<optional>" } ],\n' +
     '  "triggers": [ { "name": "<trigger type>", "status": "<pass|warn|fail|info>", "detail": "<short>", "recommendation": "<optional>" } ],\n' +
-    '  "top_issues": [ { "title": "<short>", "priority": "<high|medium|low>", "detail": "<specific to this site>", "fix": "<actionable step>" } ],\n' +
+    '  "top_issues": [ { "title": "<short>", "priority": "<high|medium|low>", "detail": "<cite SPECIFIC evidence from data above>", "fix": "<actionable step>" } ],\n' +
+    '  "worth_verifying": [ { "title": "<short>", "detail": "<what we saw and what we could not confirm>", "how_to_check": "<30-second concrete steps: open browser dev tools, navigate to X, look for Y>" } ],\n' +
     '  "quick_wins": [ "<short imperative tied to real finding>", ... ]\n' +
     '}\n\n' +
-    'Use 4-6 tags, 3-5 triggers, top_issues count = issues_count, 3-5 quick wins. Names MUST come from actual data. Generic answers fail the audit.';
+    'Use 4-6 tags, 3-5 triggers, top_issues count = issues_count (high confidence only), 2-5 worth_verifying items, 3-5 quick wins. Names MUST come from actual data. Generic answers fail the audit.';
 }
 
 // ===========================================================================
