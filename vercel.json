@@ -1,13 +1,7 @@
-{
-  "version": 2,
-  "builds": [
-    { "src": "api/audit.js", "use": "@vercel/node" },
-    { "src": "index.html", "use": "@vercel/static" },
-    { "src": "main.js", "use": "@vercel/static" },
-    { "src": "styles.css", "use": "@vercel/static" }
-  ],
-  "routes": [
-    { "src": "/api/audit", "dest": "/api/audit.js" },
-    { "handle": "filesystem" }
-  ]
-}
+const stages = ['Fetching page source', 'Detecting GTM container', 'Parsing gtm.js', 'Running AI audit'];
+let stageIdx = 0;
+const rotateStage = setInterval(() => {
+  if (stageIdx < stages.length - 1) stageIdx++;
+  const stageEl = section.querySelector('.audit-loading-stages');
+  if (stageEl) stageEl.textContent = stages[stageIdx];
+}, 1800);
