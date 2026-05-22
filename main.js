@@ -493,6 +493,7 @@ function renderResults(data) {
         ${renderTagsAndTriggers(audit)}
         ${parsed ? renderInventory(parsed) : ''}
         ${renderIssues(audit)}
+        ${renderWorthVerifying(audit)}
         ${renderQuickWins(audit)}
       </div>
     `;
